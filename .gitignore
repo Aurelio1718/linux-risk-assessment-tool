@@ -1,0 +1,7 @@
+# Generated reports
+reports/
+*.log
+
+# Editor / local files
+.vscode/
+.env
