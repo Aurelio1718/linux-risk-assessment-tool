@@ -17,9 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/lynis.sh"
+source "${SCRIPT_DIR}/lib/rkhunter.sh"
 
 # Defaults, overridden by command-line options. Defined before parsing so
-# they always exist under `set -u`. Used by modules added in later steps.
+# they always exist under `set -u`.
 SKIP_LYNIS=0
 SKIP_RKHUNTER=0
 OUTPUT_DIR="${SCRIPT_DIR}/reports"
@@ -81,6 +82,9 @@ main() {
 
   if [[ $SKIP_LYNIS -eq 0 ]]; then
     run_lynis
+  fi
+  if [[ $SKIP_RKHUNTER -eq 0 ]]; then
+    run_rkhunter
   fi
 
   print_table
