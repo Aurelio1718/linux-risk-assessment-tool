@@ -16,6 +16,7 @@ VERSION="0.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${SCRIPT_DIR}/lib/common.sh"
+source "${SCRIPT_DIR}/lib/lynis.sh"
 
 # Defaults, overridden by command-line options. Defined before parsing so
 # they always exist under `set -u`. Used by modules added in later steps.
@@ -77,6 +78,11 @@ main() {
   [[ $EUID -eq 0 ]] || die "Must be run as root: sudo bash ra-tool.sh"
 
   init_findings
+
+  if [[ $SKIP_LYNIS -eq 0 ]]; then
+    run_lynis
+  fi
+
   print_table
 }
 
