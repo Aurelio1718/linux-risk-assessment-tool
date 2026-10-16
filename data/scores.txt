@@ -20,7 +20,7 @@ lynis | AUTH-9204 | 5 | 4 | An account other than root has UID 0: full root priv
 lynis | AUTH-9283 | 4 | 3 | Accounts without a password: local login or su without any credential | Lock the accounts (passwd -l) or set a strong password
 
 # --- Lynis: suggestions -------------------------------------------------------
-lynis | FIRE-4590 | 4 | 2 | No active host firewall: every listening service is reachable from the network | Enable a host firewall (e.g. ufw) that allows only the required services
+lynis | FIRE-4590 | 4 | 2 | No host firewall filtering traffic (none active, or an empty ruleset): every listening service is reachable from the network | Enable a host firewall (e.g. ufw) with rules that allow only the required services
 lynis | SSH-7408  | 3 | 2 | SSH server options are weaker than recommended (forwarding, session limits, logging) | Set the recommended values listed in the evidence in sshd_config, then test with sshd -t
 lynis | DEB-0880  | 3 | 2 | SSH brute force is not throttled (no fail2ban) | -
 lynis | AUTH-9262 | 3 | 2 | No password strength checks: users can set weak passwords | Install libpam-pwquality and set a minimum length and complexity

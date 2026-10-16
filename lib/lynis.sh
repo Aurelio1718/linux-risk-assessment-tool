@@ -8,6 +8,7 @@
 #   suggestion[]=TEST-ID|text|details|solution|
 #   lynis_version=...
 #   hardening_index=...
+#   firewall_active=1, firewall_empty_ruleset=1 (see check_firewall_state)
 #
 # Depends on lib/common.sh (info, die, require_cmd, add_finding, WORK_DIR).
 
@@ -56,6 +57,7 @@ run_lynis() {
   info "Lynis ${LYNIS_VERSION}, hardening index ${LYNIS_HARDENING_INDEX}"
 
   parse_lynis_report "$report"
+  check_firewall_state "$report"
 }
 
 #######################################
@@ -95,4 +97,33 @@ parse_lynis_report() {
 
     add_finding lynis "$id" "$text" "$impact" "$likelihood" "$kind"
   done < <(grep -E '^(warning|suggestion)\[\]=' "$report")
+}
+
+#######################################
+# Add FIRE-4590 when a packet filter is loaded but filters nothing.
+# Lynis suggests FIRE-4590 only when no firewall is "active", and for
+# Lynis "active" only means that a packet filter kernel module is loaded
+# (FIRE-4536 for nftables). That module loads on the first use of nft,
+# iptables or ufw, even with no rules at all. An empty ruleset
+# (FIRE-4540 for nftables, FIRE-4512 for iptables) is written to the
+# report, but never as a warning or suggestion. Without this check the
+# same unfiltered host gets FIRE-4590 or not, depending on what ran
+# since boot.
+# The finding reuses the ID FIRE-4590, so that its data/scores.txt entry
+# and the exposed ports rule R3 (lib/reconcile.sh) apply to it.
+# Arguments:
+#   $1 - report file
+#######################################
+check_firewall_state() {
+  local report="$1" active empty
+  active="$(lynis_report_value firewall_active "$report")"
+  empty="$(lynis_report_value firewall_empty_ruleset "$report")"
+
+  if [[ $active == "1" && $empty == "1" ]]; then
+    # Default score 2/2, like a Lynis suggestion: data/scores.txt
+    # overrides it.
+    add_finding lynis FIRE-4590 \
+      "Packet filter loaded but its ruleset is empty: no traffic is filtered (Lynis firewall_active=1, firewall_empty_ruleset=1)" \
+      2 2
+  fi
 }
