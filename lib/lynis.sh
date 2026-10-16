@@ -60,7 +60,9 @@ run_lynis() {
 
 #######################################
 # Turn the warning[] and suggestion[] lines of a Lynis report into findings.
-# Default scores, used until data/scores.tsv exists:
+# Each finding keeps its kind (warning or suggestion): lib/reconcile.sh
+# uses it to merge a warning with the suggestions of the same test.
+# Default scores, used when the test ID is not in data/scores.txt:
 #   warning    -> impact 3, likelihood 3
 #   suggestion -> impact 2, likelihood 2
 # Arguments:
@@ -75,8 +77,9 @@ parse_lynis_report() {
     #  ^^^^^^^ kind        ^^^^^^^^^^^^^^^^^^^^^^^^^ rest
     kind="${line%%'[]='*}"
     rest="${line#*=}"
-    # The solution field is not used yet (reserved for scores.tsv):
-    # it goes into `_` together with the trailing '|'.
+    # The solution field is not used: it goes into `_` together with the
+    # trailing '|'. Recommended actions come from the suggestions and
+    # from data/scores.txt.
     IFS='|' read -r id text details _ <<< "$rest"
 
     case "$kind" in
@@ -90,6 +93,6 @@ parse_lynis_report() {
       text="${text} (${details})"
     fi
 
-    add_finding lynis "$id" "$text" "$impact" "$likelihood"
+    add_finding lynis "$id" "$text" "$impact" "$likelihood" "$kind"
   done < <(grep -E '^(warning|suggestion)\[\]=' "$report")
 }

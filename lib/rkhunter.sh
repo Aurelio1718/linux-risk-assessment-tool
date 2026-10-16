@@ -29,7 +29,7 @@ RKH_POSSIBLE_ROOTKITS=""
 # are created by the system itself:
 #   .resolv.conf.systemd-resolved.bak  backup made by systemd-resolved
 #   .updated                           timestamp written by systemd-update-done
-# To be moved to a data file together with the other known false positives.
+# Rule R6 (known false positives): these get a low score, with a note.
 RKH_KNOWN_HIDDEN=(
   /etc/.resolv.conf.systemd-resolved.bak
   /etc/.updated
@@ -139,7 +139,7 @@ parse_rkhunter_log() {
 
 #######################################
 # Classify one warning, score it and record it as a finding.
-# Default scores, used until data/scores.tsv exists:
+# Default scores (data/scores.txt only adds risk and action texts):
 #   RKH-PROPS     5/3  a changed system binary may be a trojan; the most
 #                      common cause is a package update, hence L=3
 #   RKH-SSH-ROOT  4/1  likely false positive (see text)
@@ -161,7 +161,7 @@ rkh_record() {
       id="RKH-SSH-ROOT"; impact=4; likelihood=1
       text+=" -- likely false positive: rkhunter reads sshd_config only,"
       text+=" while the OpenSSH default is prohibit-password;"
-      text+=" the effective value is checked natively with sshd -T"
+      text+=" the effective value is checked by Lynis SSH-7408 (sshd -T)"
       ;;
     "Hidden file found: "* | "Hidden directory found: "*)
       id="RKH-HIDDEN"; impact=3; likelihood=3

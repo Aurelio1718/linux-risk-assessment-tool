@@ -2,7 +2,7 @@
 #
 # lib/common.sh - Shared helpers for all ra-tool modules.
 #
-# Provides: logging, a temporary work area, the findings store,
+# Provides: logging, a temporary work area, the raw findings store,
 # risk level calculation and the final results table.
 #
 # Meant to be loaded with `source` by ra-tool.sh, not executed directly.
@@ -51,10 +51,11 @@ require_cmd() {
 # ---------------------------------------------------------------------------
 # Work area and findings store
 # ---------------------------------------------------------------------------
-# Each finding is one TSV line (TAB-separated fields) in FINDINGS_FILE:
-#   source  id  text  impact  likelihood  risk
-# Every module writes through add_finding; the table is printed once at
-# the end, so sorting by risk is global across all sources.
+# Each raw finding is one TSV line (TAB-separated fields) in FINDINGS_FILE:
+#   source  id  kind  text  impact  likelihood
+# Every module writes through add_finding. Raw findings are then grouped
+# and scored by lib/reconcile.sh into RISKS_FILE, which the table and the
+# report read: sorting by risk is global across all sources.
 
 # Initialised empty so that `set -u` does not fail in cleanup() if the
 # script exits before init_findings runs.
@@ -89,18 +90,20 @@ cleanup() {
 }
 
 #######################################
-# Record a finding.
+# Record a raw finding.
 # Globals:
 #   FINDINGS_FILE
 # Arguments:
 #   $1 - source (lynis | rkhunter | native)
 #   $2 - check ID (e.g. PKGS-7392)
-#   $3 - description
-#   $4 - impact, integer 1-5
-#   $5 - likelihood, integer 1-5
+#   $3 - description, as reported by the source
+#   $4 - default impact, integer 1-5
+#   $5 - default likelihood, integer 1-5
+#   $6 - kind (optional): warning | suggestion (Lynis); default: finding
 #######################################
 add_finding() {
   local src="$1" id="$2" text="$3" impact="$4" likelihood="$5"
+  local kind="${6:-finding}"
 
   # A non-numeric value (e.g. a typo in scores.tsv) would make the
   # arithmetic produce nonsense: fail early with a clear message instead.
@@ -114,8 +117,7 @@ add_finding() {
   [[ -n $text ]] || text="(no description)"
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$src" "$id" "$text" "$impact" "$likelihood" "$(( impact * likelihood ))" \
-    >> "$FINDINGS_FILE"
+    "$src" "$id" "$kind" "$text" "$impact" "$likelihood" >> "$FINDINGS_FILE"
 }
 
 # ---------------------------------------------------------------------------
@@ -123,54 +125,75 @@ add_finding() {
 # ---------------------------------------------------------------------------
 
 #######################################
-# Map a risk score (impact x likelihood, 1-25) to a level name.
+# Map a risk score (likelihood x impact, 1-25) to a level name.
+# Bands and meaning follow the course "Cybersecurity Risk Assessment"
+# template:
+#   Low       1-5   acceptable
+#   Moderate  6-10  monitor
+#   Medium   11-15  mitigate
+#   High     16-25  act immediately
 # Arguments:
 #   $1 - risk score
 # Outputs:
-#   The level to stdout: Low, Medium, High or Critical.
+#   The level to stdout.
 #######################################
 risk_level() {
   local score="$1"
-  if   (( score >= 16 )); then echo "Critical"
-  elif (( score >= 10 )); then echo "High"
-  elif (( score >= 5 ));  then echo "Medium"
+  if   (( score >= 16 )); then echo "High"
+  elif (( score >= 11 )); then echo "Medium"
+  elif (( score >= 6 ));  then echo "Moderate"
   else                         echo "Low"
   fi
 }
 
 #######################################
-# Print all findings as a table, highest risk first.
+# Print the risk register as a table, highest risk first, followed by
+# a count per level and the list of checks scored with generic defaults
+# (candidates for data/scores.txt).
 # Globals:
-#   FINDINGS_FILE
+#   RISKS_FILE, FINDINGS_FILE
 # Outputs:
-#   The table to stdout; the total count to stderr.
+#   The table to stdout; the totals to stderr.
 #######################################
 print_table() {
-  local count
-  count="$(wc -l < "$FINDINGS_FILE")"
+  local count raw
+  count="$(wc -l < "$RISKS_FILE")"
+  raw="$(wc -l < "$FINDINGS_FILE")"
   if (( count == 0 )); then
     info "No findings."
     return 0
   fi
 
   # Fixed column widths: '-' aligns left, no '-' aligns right.
-  local fmt='%-12s %-9s %-60s %2s %2s %4s  %-8s\n'
-  local width=104   # sum of widths + separators, for the divider line
+  # Likelihood before impact, as in the course template (P x I).
+  local fmt='%-14s %-8s %-56s %2s %2s %4s  %-8s\n'
+  local width=101   # sum of widths + separators, for the divider line
 
   # shellcheck disable=SC2059  # format is our own constant, not external input
-  printf "$fmt" "ID" "Source" "Finding" "I" "L" "Risk" "Level"
+  printf "$fmt" "ID" "Source" "Risk" "L" "I" "Risk" "Level"
   printf '%*s\n' "$width" '' | tr ' ' '-'
 
-  local src id text impact likelihood score
-  while IFS=$'\t' read -r src id text impact likelihood score; do
+  local src id risk impact likelihood score basis level
+  local -A per_level=()
+  local -a unscored=()
+  # Fields: source id category risk action impact likelihood score basis ...
+  while IFS=$'\t' read -r src id _ risk _ impact likelihood score basis _; do
+    level="$(risk_level "$score")"
+    per_level[$level]=$(( ${per_level[$level]:-0} + 1 ))
+    if [[ $basis == default* ]]; then unscored+=("$id"); fi
     # Full text goes into the Markdown report; truncate it on the terminal.
-    if (( ${#text} > 60 )); then
-      text="${text:0:57}..."
+    if (( ${#risk} > 56 )); then
+      risk="${risk:0:53}..."
     fi
     # shellcheck disable=SC2059
-    printf "$fmt" "$id" "$src" "$text" "$impact" "$likelihood" "$score" \
-      "$(risk_level "$score")"
-  done < <(sort -t $'\t' -k6,6nr -k2,2 "$FINDINGS_FILE")
+    printf "$fmt" "$id" "$src" "$risk" "$likelihood" "$impact" "$score" "$level"
+  done < <(sort -t $'\t' -k8,8nr -k2,2 "$RISKS_FILE")
 
-  info "${count} findings in total."
+  info "${count} risks from ${raw} raw findings:" \
+       "High ${per_level[High]:-0}, Medium ${per_level[Medium]:-0}," \
+       "Moderate ${per_level[Moderate]:-0}, Low ${per_level[Low]:-0}"
+  if (( ${#unscored[@]} > 0 )); then
+    warn "${#unscored[@]} risks use generic default scores" \
+         "(not in data/scores.txt): ${unscored[*]}"
+  fi
 }

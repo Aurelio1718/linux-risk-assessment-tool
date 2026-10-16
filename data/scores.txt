@@ -1,0 +1,66 @@
+# data/scores.txt - Risk table for ra-tool: likelihood, impact, risk
+# description and recommended action per check.
+#
+# Format: one entry per line, fields separated by '|':
+#   source | id | impact | likelihood | risk | action
+#   - impact, likelihood: integers 1-5 (scales in README "Risk method");
+#     '-' keeps the module's default score (rkhunter and native checks
+#     score themselves, e.g. known false positives get a low score)
+#   - risk: what can go wrong, in one sentence
+#   - action: what to do; '-' or empty uses the tool's own suggestion
+#   - an entry applies to every finding with that source and ID
+# Checks not listed here keep the module default score:
+#   Lynis warning 3/3, Lynis suggestion 2/2 (basis "default" in the report).
+#
+# Lynis test descriptions: https://cisofy.com/lynis/controls/<ID>/
+
+# --- Lynis: warnings ----------------------------------------------------------
+lynis | PKGS-7392 | 4 | 3 | Installed packages have known vulnerabilities (security updates pending) | Apply the pending updates (apt update && apt upgrade) and keep unattended-upgrades enabled
+lynis | AUTH-9204 | 5 | 4 | An account other than root has UID 0: full root privileges under another name (classic backdoor) | Remove the account or give it a normal UID (vipw), then investigate how it was created
+lynis | AUTH-9283 | 4 | 3 | Accounts without a password: local login or su without any credential | Lock the accounts (passwd -l) or set a strong password
+
+# --- Lynis: suggestions -------------------------------------------------------
+lynis | FIRE-4590 | 4 | 2 | No active host firewall: every listening service is reachable from the network | Enable a host firewall (e.g. ufw) that allows only the required services
+lynis | SSH-7408  | 3 | 2 | SSH server options are weaker than recommended (forwarding, session limits, logging) | Set the recommended values listed in the evidence in sshd_config, then test with sshd -t
+lynis | DEB-0880  | 3 | 2 | SSH brute force is not throttled (no fail2ban) | -
+lynis | AUTH-9262 | 3 | 2 | No password strength checks: users can set weak passwords | Install libpam-pwquality and set a minimum length and complexity
+lynis | KRNL-6000 | 3 | 2 | Kernel network and memory protections (sysctl) differ from a hardened profile | -
+lynis | ACCT-9628 | 3 | 2 | No audit trail (auditd): attacks are hard to detect and investigate | -
+lynis | LOGG-2154 | 3 | 2 | Logs are kept only locally: an attacker with root can erase their traces | Forward logs to a remote log host
+lynis | FINT-4350 | 3 | 2 | No file integrity monitoring: changes to system files go unnoticed | Install and initialise a file integrity tool (e.g. AIDE)
+lynis | HRDN-7222 | 2 | 2 | Compilers usable by every user: helps an attacker build exploits locally | -
+lynis | BOOT-5122 | 3 | 1 | No boot loader password: boot options can be changed with console access | -
+lynis | USB-1000  | 3 | 1 | USB storage allowed: data theft or malware with physical access | -
+lynis | NETW-3200 | 2 | 1 | Uncommon network protocols can be loaded (kernel attack surface) | Block the unused protocols listed in the evidence (install /bin/true for them in /etc/modprobe.d)
+lynis | FILE-6310 | 2 | 1 | No separate partitions: a full /home or /var can stop services | -
+lynis | AUTH-9286 | 2 | 2 | No password ageing policy (minimum and maximum age) | -
+lynis | AUTH-9282 | 2 | 2 | Passwords of protected accounts never expire | -
+lynis | BOOT-5264 | 2 | 2 | systemd services run without sandboxing: a compromised service reaches more of the system | Review exposed services with systemd-analyze security and add sandboxing options
+lynis | AUTH-9328 | 2 | 2 | Default umask not set in /etc/login.defs: new files may be readable by other users | -
+lynis | FILE-7524 | 2 | 2 | Some sensitive files have broader permissions than recommended | Restrict the permissions listed in the Lynis log (test FILE-7524)
+lynis | LOGG-2190 | 2 | 2 | Deleted files are still held open by processes (can hide logs or malware) | -
+lynis | AUTH-9229 | 2 | 1 | Password hashes use default rounds: stolen hashes are cracked faster | -
+lynis | AUTH-9230 | 2 | 1 | Password hashes use default rounds: stolen hashes are cracked faster | -
+lynis | DEB-0280  | 2 | 1 | PAM sessions share /tmp: other users may read or tamper with temporary files | -
+lynis | PKGS-7370 | 2 | 1 | Installed package files cannot be checked against their checksums (no debsums) | -
+lynis | BOOT-5180 | 1 | 1 | Startup services could not be fully determined (informational) | -
+lynis | ACCT-9622 | 2 | 1 | No process accounting: less information after an incident | -
+lynis | PKGS-7346 | 1 | 2 | Configuration files of removed packages are left on disk | -
+lynis | PKGS-7394 | 1 | 1 | Helper tool for patch management missing (apt-show-versions) | -
+lynis | DEB-0810  | 1 | 1 | Helper tool missing: critical package bugs not shown before install | -
+lynis | DEB-0811  | 1 | 1 | Helper tool missing: package changes not shown before upgrade | -
+lynis | NAME-4028 | 1 | 1 | DNS domain name not configured (operational, not a security issue) | -
+lynis | TOOL-5002 | 1 | 1 | No configuration management tool: manual changes are hard to track | -
+lynis | BANN-7126 | 1 | 1 | No legal banner on the console: legal, not technical, issue | -
+lynis | BANN-7130 | 1 | 1 | No legal banner for remote logins: legal, not technical, issue | -
+
+# --- rkhunter (scores set in lib/rkhunter.sh) ---------------------------------
+rkhunter | RKH-PROPS    | - | - | System binaries changed since the rkhunter baseline: possible trojan (often just a package update) | Verify each file against its package (dpkg --verify); if legitimate, update the baseline (rkhunter --propupd)
+rkhunter | RKH-SSH-ROOT | - | - | PermitRootLogin is not set explicitly in sshd_config | Set PermitRootLogin no in sshd_config
+rkhunter | RKH-HIDDEN   | - | - | Hidden files or directories in system paths | Check every unknown file; known system files are scored low
+rkhunter | RKH-WARN     | - | - | Other rkhunter warning | Read the warning in the evidence and investigate it
+
+# --- native checks (scores set in lib/native.sh) ------------------------------
+native | NAT-SSH-PASSWD | - | - | SSH accepts password logins: brute force and reused passwords are possible | Deploy SSH keys, then set PasswordAuthentication no
+native | NAT-SSH-EMPTY  | - | - | SSH accepts empty passwords | Set PermitEmptyPasswords no
+native | NAT-SUDO-NOPW  | - | - | sudo rules without password: a hijacked user session becomes root | Remove NOPASSWD, or limit it to specific harmless commands

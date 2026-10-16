@@ -2,9 +2,9 @@
 #
 # ra-tool.sh - Risk assessment tool for Linux systems.
 #
-# Collects findings from Lynis, rkhunter and native checks, scores each
-# one as impact x likelihood and prints them sorted by risk, together
-# with a Markdown report.
+# Collects findings from Lynis, rkhunter and native checks, reconciles
+# them into a risk register (likelihood x impact, see lib/reconcile.sh)
+# and prints it sorted by risk.
 #
 # Usage: sudo bash ra-tool.sh [--skip-lynis] [--skip-rkhunter] [--skip-native] [-o DIR]
 
@@ -19,6 +19,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/lynis.sh"
 source "${SCRIPT_DIR}/lib/rkhunter.sh"
 source "${SCRIPT_DIR}/lib/native.sh"
+source "${SCRIPT_DIR}/lib/reconcile.sh"
 
 # Defaults, overridden by command-line options. Defined before parsing so
 # they always exist under `set -u`.
@@ -83,6 +84,9 @@ main() {
   [[ $EUID -eq 0 ]] || die "Must be run as root: sudo bash ra-tool.sh"
 
   init_findings
+  # Loaded before the scans: a broken score table stops the run at once,
+  # not after several minutes of scanning.
+  load_scores "${SCRIPT_DIR}/data/scores.txt"
 
   if [[ $SKIP_LYNIS -eq 0 ]]; then
     run_lynis
@@ -93,6 +97,7 @@ main() {
   if [[ $SKIP_NATIVE -eq 0 ]]; then
     run_native
   fi
+  reconcile_findings
   print_table
 }
 
