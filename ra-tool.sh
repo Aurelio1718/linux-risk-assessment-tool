@@ -6,7 +6,7 @@
 # one as impact x likelihood and prints them sorted by risk, together
 # with a Markdown report.
 #
-# Usage: sudo bash ra-tool.sh [--skip-lynis] [--skip-rkhunter] [-o DIR]
+# Usage: sudo bash ra-tool.sh [--skip-lynis] [--skip-rkhunter] [--skip-native] [-o DIR]
 
 set -euo pipefail
 
@@ -18,11 +18,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/lynis.sh"
 source "${SCRIPT_DIR}/lib/rkhunter.sh"
+source "${SCRIPT_DIR}/lib/native.sh"
 
 # Defaults, overridden by command-line options. Defined before parsing so
 # they always exist under `set -u`.
 SKIP_LYNIS=0
 SKIP_RKHUNTER=0
+SKIP_NATIVE=0
 OUTPUT_DIR="${SCRIPT_DIR}/reports"
 
 #######################################
@@ -39,6 +41,7 @@ Usage: sudo bash ra-tool.sh [options]
 Options:
   --skip-lynis      do not run Lynis
   --skip-rkhunter   do not run rkhunter
+  --skip-native     do not run the native checks
   -o DIR            directory for the Markdown report (default: reports/)
   -h, --help        show this help
 EOF
@@ -47,7 +50,7 @@ EOF
 #######################################
 # Parse command-line options.
 # Globals:
-#   SKIP_LYNIS, SKIP_RKHUNTER, OUTPUT_DIR (set)
+#   SKIP_LYNIS, SKIP_RKHUNTER, SKIP_NATIVE, OUTPUT_DIR (set)
 # Arguments:
 #   All script arguments ("$@").
 #######################################
@@ -56,6 +59,7 @@ parse_args() {
     case "$1" in
       --skip-lynis)    SKIP_LYNIS=1 ;;
       --skip-rkhunter) SKIP_RKHUNTER=1 ;;
+      --skip-native)   SKIP_NATIVE=1 ;;
       -o)
         [[ $# -ge 2 ]] || die "Option -o requires a directory"
         OUTPUT_DIR="$2"
@@ -86,7 +90,9 @@ main() {
   if [[ $SKIP_RKHUNTER -eq 0 ]]; then
     run_rkhunter
   fi
-
+  if [[ $SKIP_NATIVE -eq 0 ]]; then
+    run_native
+  fi
   print_table
 }
 
